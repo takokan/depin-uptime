@@ -24,7 +24,7 @@ Bun.serve({
       try {
         const data: IncomingMessage = JSON.parse(message);
         
-        console.log("Received message type:", data.type);
+        console.log("Received message type:", data.type); 
         console.log("Message data:", JSON.stringify(data.data || {}));
         
         if (data.type === 'signup') {

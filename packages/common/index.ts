@@ -40,4 +40,3 @@ export type OutgoingMessage = {
   type: 'validate'
   data: ValidateOutgoingMessage
 }
-
