@@ -13,269 +13,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model for authentication and account management
+
+
 model User {
-  id                 String            @id @default(uuid())
-  email              String            @unique
-  passwordHash       String
-  name               String?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  role               UserRole          @default(USER)
-  isEmailVerified    Boolean           @default(false)
-  walletAddress      String?           @unique
-  websites           Website[]
-  validatorNodes     ValidatorNode[]
-  monitoringResults  MonitoringResult[]
-  validationRewards  ValidationReward[]
-  notificationConfig NotificationConfig?
-  alerts             Alert[]
-  apiKeys            ApiKey[]
-  subscription       Subscription?
+  id              String      @id     @default(uuid())
+  email           String
 }
 
-enum UserRole {
-  USER
-  VALIDATOR
-  ADMIN
-}
-
-// Website to be monitored
 model Website {
-  id               String            @id @default(uuid())
-  url              String
-  name             String
-  description      String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  checkInterval    Int               @default(300) // Default check interval in seconds (5 min)
-  expectedStatus   Int               @default(200)
-  isActive         Boolean           @default(true)
-  userId           String
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  monitoringChecks MonitoringCheck[]
-  monitoringResults MonitoringResult[]
-  alertThreshold   Int               @default(2) // Number of consecutive failures before alerting
-  alerts           Alert[]
-  customHeaders    Json?             // Custom HTTP headers for monitoring requests
-  monitoringOptions MonitoringOptions?
+  id        String      @id     @default(uuid())
+  url       String
+  userId    String
+  ticks     WebsiteTick[]
+  disabled  Boolean     @default(false)
 }
 
-// Options for monitoring websites
-model MonitoringOptions {
-  id                String   @id @default(uuid())
-  websiteId         String   @unique
-  website           Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  timeout           Int      @default(30) // Timeout in seconds
-  followRedirects   Boolean  @default(true)
-  validateSSL       Boolean  @default(true)
-  verifyContent     Boolean  @default(false)
-  contentPattern    String?  // Regex pattern to verify in response
-  monitoringRegions String[] // Regions where the website should be monitored
+model Validator {
+  id        String      @id     @default(uuid())
+  publicKey String
+  location  String
+  ip        String
+  pendingPayouts  Int         @default(0)
+  ticks     WebsiteTick[]
 }
 
-// Validator nodes that perform the monitoring
-model ValidatorNode {
-  id               String            @id @default(uuid())
-  name             String
-  ipAddress        String?
-  walletAddress    String            @unique
-  nodeUrl          String            @unique
-  status           NodeStatus        @default(ACTIVE)
-  totalStake       Float             @default(0)
-  reputationScore  Float             @default(1)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  lastHeartbeat    DateTime?
-  userId           String?
-  user             User?             @relation(fields: [userId], references: [id])
-  monitoringChecks MonitoringCheck[]
-  monitoringResults MonitoringResult[]
-  stakingRecords   StakingRecord[]
-  validationRewards ValidationReward[]
-  region           String            @default("global")
-  version          String?
+model WebsiteTick {
+  id              String      @id     @default(uuid())
+  websiteId       String
+  validatorId     String
+  createdAt       DateTime
+  status          WebsiteStatus
+  latency         Float
+  website         Website    @relation(fields: [websiteId], references: [id])
+  validator       Validator    @relation(fields: [validatorId], references: [id])
 }
 
-enum NodeStatus {
-  PENDING
-  ACTIVE
-  INACTIVE
-  BANNED
-}
-
-// Record of monitoring checks assigned to validators
-model MonitoringCheck {
-  id             String        @id @default(uuid())
-  websiteId      String
-  website        Website       @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  validatorNodeId String
-  validatorNode  ValidatorNode @relation(fields: [validatorNodeId], references: [id], onDelete: Cascade)
-  assignedAt     DateTime      @default(now())
-  completedAt    DateTime?
-  status         CheckStatus   @default(PENDING)
-  ipAssigned     String?       // IP address used for the check
-}
-
-enum CheckStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  DISPUTED
-}
-
-// Results of monitoring checks
-model MonitoringResult {
-  id             String        @id @default(uuid())
-  websiteId      String
-  website        Website       @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  validatorNodeId String
-  validatorNode  ValidatorNode @relation(fields: [validatorNodeId], references: [id])
-  timestamp      DateTime      @default(now())
-  responseTime   Int?          // in milliseconds
-  statusCode     Int?
-  isUp           Boolean
-  errorMessage   String?
-  responseSize   Int?          // in bytes
-  sslDetails     Json?         // SSL certificate details if applicable
-  headers        Json?         // Response headers
-  userId         String?       // User who triggered manual check if any
-  user           User?         @relation(fields: [userId], references: [id])
-  blockNumber    Int?          // Blockchain block number when result was recorded
-  txHash         String?       // Transaction hash on blockchain
-  contentMatch   Boolean?      // Did content match expected pattern?
-  region         String?       // Region where check was performed
-}
-
-// Records of validator staking
-model StakingRecord {
-  id             String        @id @default(uuid())
-  validatorNodeId String
-  validatorNode  ValidatorNode @relation(fields: [validatorNodeId], references: [id], onDelete: Cascade)
-  amount         Float
-  timestamp      DateTime      @default(now())
-  txHash         String        @unique
-  blockNumber    Int
-  status         StakingStatus @default(PENDING)
-}
-
-enum StakingStatus {
-  PENDING
-  CONFIRMED
-  UNSTAKED
-}
-
-// Rewards for validators
-model ValidationReward {
-  id              String        @id @default(uuid())
-  validatorNodeId String
-  validatorNode   ValidatorNode @relation(fields: [validatorNodeId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount          Float
-  timestamp       DateTime      @default(now())
-  txHash          String?
-  blockNumber     Int?
-  status          RewardStatus  @default(PENDING)
-  description     String?
-}
-
-enum RewardStatus {
-  PENDING
-  PAID
-  FAILED
-}
-
-// Consensus data for blockchain integration
-model ConsensusData {
-  id            String   @id @default(uuid())
-  blockNumber   Int
-  blockHash     String   @unique
-  dataHash      String   // Hash of all monitoring results in the block
-  timestamp     DateTime @default(now())
-  validatorCount Int
-  networkState  Json?    // State of the validator network
-}
-
-// Notification configuration for users
-model NotificationConfig {
-  id            String   @id @default(uuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  email         Boolean  @default(true)
-  slack         Boolean  @default(false)
-  telegram      Boolean  @default(false)
-  discord       Boolean  @default(false)
-  pushover      Boolean  @default(false)
-  webhook       Boolean  @default(false)
-  webhookUrl    String?
-  slackWebhook  String?
-  telegramChatId String?
-  discordWebhook String?
-  pushoverKey   String?
-}
-
-// Alerts for website downtime
-model Alert {
-  id            String      @id @default(uuid())
-  websiteId     String
-  website       Website     @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  userId        String
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  message       String
-  timestamp     DateTime    @default(now())
-  resolvedAt    DateTime?
-  status        AlertStatus @default(ACTIVE)
-  notified      Boolean     @default(false)
-  notifiedAt    DateTime?
-}
-
-enum AlertStatus {
-  ACTIVE
-  RESOLVED
-  ACKNOWLEDGED
-}
-
-// API Keys for user integration
-model ApiKey {
-  id            String   @id @default(uuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  key           String   @unique
-  name          String
-  createdAt     DateTime @default(now())
-  lastUsedAt    DateTime?
-  expiresAt     DateTime?
-  isActive      Boolean  @default(true)
-}
-
-// User subscription information
-model Subscription {
-  id               String           @id @default(uuid())
-  userId           String           @unique
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan             SubscriptionPlan @default(FREE)
-  startDate        DateTime         @default(now())
-  endDate          DateTime?
-  paymentStatus    PaymentStatus    @default(UNPAID)
-  maxWebsites      Int              @default(5)
-  maxCheckInterval Int              @default(60) // Minimum check interval in seconds
-  autoRenew        Boolean          @default(false)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-}
-
-enum SubscriptionPlan {
-  FREE
-  BASIC
-  PRO
-  ENTERPRISE
-}
-
-enum PaymentStatus {
-  UNPAID
-  PENDING
-  PAID
-  FAILED
-  REFUNDED
+enum WebsiteStatus {
+  Good
+  Bad
 }
