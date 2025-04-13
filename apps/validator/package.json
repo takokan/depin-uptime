@@ -10,7 +10,8 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@solana/web3.js": "^1.98.0",
+    "@solana/web3.js": "^1.43.0",
+    "fs": "^0.0.1-security",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1"
   }
